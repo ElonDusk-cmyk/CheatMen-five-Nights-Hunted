@@ -1,112 +1,41 @@
--- Five Nights: Hunted Multi-Hack Script für Xenon (Verbesserte Version mit Bypass) 
+-- Five Nights: Hunted Script für Xenon
+-- Geschwindigkeitsregler, Barrieren-Deaktivierer, Fliegen und NoClip
+
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local Humanoid = Character:WaitForChild("Humanoid")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local CoreGui = game:GetService("CoreGui")
-
--- GUI Bypass Funktion - versucht mehrere Methoden
-local function createGUI()
-    local Success, Result = pcall(function()
-        -- Methode 1: CoreGui mit zufälligem Namen
-        local ScreenGui = Instance.new("ScreenGui")
-        ScreenGui.Name = "FNGUI_" .. math.random(10000, 99999)
-        ScreenGui.Parent = CoreGui
-        ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-        ScreenGui.Enabled = true
-        return ScreenGui
-    end)
-    
-    if Success and Result then
-        return Result
-    end
-    
-    -- Methode 2: PlayerGui
-    local Success2, Result2 = pcall(function()
-        local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
-        local ScreenGui = Instance.new("ScreenGui")
-        ScreenGui.Name = "PlayerFNGUI_" .. tick()
-        ScreenGui.Parent = PlayerGui
-        ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-        ScreenGui.ResetOnSpawn = false
-        ScreenGui.Enabled = true
-        return ScreenGui
-    end)
-    
-    if Success2 and Result2 then
-        return Result2
-    end
-    
-    -- Methode 3: WaitForChild mit Timeout
-    local Success3, Result3 = pcall(function()
-        local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 5)
-        if PlayerGui then
-            local ScreenGui = Instance.new("ScreenGui")
-            ScreenGui.Name = "SafeGUI_" .. math.random(1000, 9999)
-            ScreenGui.Parent = PlayerGui
-            ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-            ScreenGui.ResetOnSpawn = false
-            return ScreenGui
-        end
-        return nil
-    end)
-    
-    if Success3 and Result3 then
-        return Result3
-    end
-    
-    warn("Alle GUI-Erstellungsmethoden sind fehlgeschlagen!")
-    return nil
-end
-
-local ScreenGui = createGUI()
-if not ScreenGui then
-    LocalPlayer:Kick("GUI konnte nicht erstellt werden - Spiel blockiert Skripte")
-    return
-end
-
--- Schutz vor GUI-Löschung
-local guiConnection
-guiConnection = ScreenGui.AncestryChanged:Connect(function()
-    if not ScreenGui.Parent then
-        warn("GUI wurde entfernt, versuche Wiederherstellung...")
-        ScreenGui = createGUI()
-        if ScreenGui then
-            -- GUI neu erstellen
-            guiConnection:Disconnect()
-            -- Skript neu initialisieren
-        end
-    end
-end)
 
 -- GUI Erstellung
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Parent = game:GetService("CoreGui")
+
 local MainFrame = Instance.new("Frame")
 MainFrame.Parent = ScreenGui
-MainFrame.Size = UDim2.new(0, 320, 0, 300)
-MainFrame.Position = UDim2.new(0.5, -160, 0.5, -150)
-MainFrame.BackgroundColor3 = Color3.new(0.05, 0.05, 0.05)
+MainFrame.Size = UDim2.new(0, 300, 0, 280)
+MainFrame.Position = UDim2.new(0.5, -150, 0.5, -140)
+MainFrame.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
 MainFrame.BorderSizePixel = 2
 MainFrame.BorderColor3 = Color3.new(0, 1, 0)
 MainFrame.Active = true
 MainFrame.Draggable = true
-MainFrame.BackgroundTransparency = 0.1
 
 local Title = Instance.new("TextLabel")
 Title.Parent = MainFrame
-Title.Size = UDim2.new(1, 0, 0, 35)
+Title.Size = UDim2.new(1, 0, 0, 30)
 Title.Position = UDim2.new(0, 0, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "F.N. Hunted - Multi-Hack v2"
+Title.Text = "F.N. Hunted - Multi-Hack"
 Title.TextColor3 = Color3.new(0, 1, 0)
 Title.Font = Enum.Font.SourceSansBold
-Title.TextSize = 20
+Title.TextSize = 18
 
 local SpeedLabel = Instance.new("TextLabel")
 SpeedLabel.Parent = MainFrame
 SpeedLabel.Size = UDim2.new(0, 100, 0, 20)
-SpeedLabel.Position = UDim2.new(0, 10, 0, 45)
+SpeedLabel.Position = UDim2.new(0, 10, 0, 40)
 SpeedLabel.BackgroundTransparency = 1
 SpeedLabel.Text = "Speed: 1.0"
 SpeedLabel.TextColor3 = Color3.new(1, 1, 1)
@@ -115,8 +44,8 @@ SpeedLabel.TextSize = 14
 
 local SpeedSlider = Instance.new("TextButton")
 SpeedSlider.Parent = MainFrame
-SpeedSlider.Size = UDim2.new(0, 220, 0, 20)
-SpeedSlider.Position = UDim2.new(0, 50, 0, 70)
+SpeedSlider.Size = UDim2.new(0, 200, 0, 20)
+SpeedSlider.Position = UDim2.new(0, 50, 0, 65)
 SpeedSlider.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
 SpeedSlider.BorderSizePixel = 1
 SpeedSlider.BorderColor3 = Color3.new(0, 1, 0)
@@ -125,8 +54,8 @@ SpeedSlider.AutoButtonColor = false
 
 local FlyButton = Instance.new("TextButton")
 FlyButton.Parent = MainFrame
-FlyButton.Size = UDim2.new(0, 220, 0, 35)
-FlyButton.Position = UDim2.new(0, 50, 0, 105)
+FlyButton.Size = UDim2.new(0, 200, 0, 30)
+FlyButton.Position = UDim2.new(0, 50, 0, 100)
 FlyButton.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
 FlyButton.BorderSizePixel = 1
 FlyButton.BorderColor3 = Color3.new(0, 1, 0)
@@ -137,8 +66,8 @@ FlyButton.TextSize = 16
 
 local NoClipButton = Instance.new("TextButton")
 NoClipButton.Parent = MainFrame
-NoClipButton.Size = UDim2.new(0, 220, 0, 35)
-NoClipButton.Position = UDim2.new(0, 50, 0, 150)
+NoClipButton.Size = UDim2.new(0, 200, 0, 30)
+NoClipButton.Position = UDim2.new(0, 50, 0, 140)
 NoClipButton.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
 NoClipButton.BorderSizePixel = 1
 NoClipButton.BorderColor3 = Color3.new(0, 1, 0)
@@ -149,8 +78,8 @@ NoClipButton.TextSize = 16
 
 local BarrierButton = Instance.new("TextButton")
 BarrierButton.Parent = MainFrame
-BarrierButton.Size = UDim2.new(0, 220, 0, 35)
-BarrierButton.Position = UDim2.new(0, 50, 0, 195)
+BarrierButton.Size = UDim2.new(0, 200, 0, 30)
+BarrierButton.Position = UDim2.new(0, 50, 0, 180)
 BarrierButton.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
 BarrierButton.BorderSizePixel = 1
 BarrierButton.BorderColor3 = Color3.new(0, 1, 0)
@@ -161,24 +90,14 @@ BarrierButton.TextSize = 16
 
 local CloseButton = Instance.new("TextButton")
 CloseButton.Parent = MainFrame
-CloseButton.Size = UDim2.new(0, 35, 0, 35)
-CloseButton.Position = UDim2.new(1, -40, 0, 0)
-CloseButton.BackgroundColor3 = Color3.new(0.7, 0, 0)
+CloseButton.Size = UDim2.new(0, 30, 0, 30)
+CloseButton.Position = UDim2.new(1, -35, 0, 0)
+CloseButton.BackgroundColor3 = Color3.new(0.5, 0, 0)
 CloseButton.BorderSizePixel = 0
 CloseButton.Text = "X"
 CloseButton.TextColor3 = Color3.new(1, 1, 1)
 CloseButton.Font = Enum.Font.SourceSansBold
-CloseButton.TextSize = 20
-
-local InfoLabel = Instance.new("TextLabel")
-InfoLabel.Parent = MainFrame
-InfoLabel.Size = UDim2.new(1, 0, 0, 20)
-InfoLabel.Position = UDim2.new(0, 0, 1, -25)
-InfoLabel.BackgroundTransparency = 1
-InfoLabel.Text = "Drücke F9 zum Umschalten | W/A/S/D/Space/Ctrl zum Fliegen"
-InfoLabel.TextColor3 = Color3.new(0.7, 0.7, 0.7)
-InfoLabel.Font = Enum.Font.SourceSans
-InfoLabel.TextSize = 12
+CloseButton.TextSize = 18
 
 -- Variablen
 local speedValue = 1.0
@@ -190,11 +109,10 @@ local noClipEnabled = false
 local flySpeed = 50
 local bodyVelocity
 local bodyGyro
-local guiVisible = true
 
 -- Geschwindigkeitsfunktion
 local function updateSpeed()
-    if Humanoid and Humanoid.Parent then
+    if Humanoid then
         Humanoid.WalkSpeed = 16 * speedValue
     end
     SpeedLabel.Text = "Speed: " .. string.format("%.1f", speedValue)
