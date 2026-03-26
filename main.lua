@@ -7,6 +7,7 @@ local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local Humanoid = Character:WaitForChild("Humanoid")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local Camera = workspace.CurrentCamera
 
 -- GUI Erstellung
 local ScreenGui = Instance.new("ScreenGui")
@@ -14,8 +15,8 @@ ScreenGui.Parent = game:GetService("CoreGui")
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Parent = ScreenGui
-MainFrame.Size = UDim2.new(0, 300, 0, 280)
-MainFrame.Position = UDim2.new(0.5, -150, 0.5, -140)
+MainFrame.Size = UDim2.new(0, 300, 0, 320)
+MainFrame.Position = UDim2.new(0.5, -150, 0.5, -160)
 MainFrame.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
 MainFrame.BorderSizePixel = 2
 MainFrame.BorderColor3 = Color3.new(0, 1, 0)
@@ -88,6 +89,19 @@ BarrierButton.TextColor3 = Color3.new(1, 0, 0)
 BarrierButton.Font = Enum.Font.SourceSansBold
 BarrierButton.TextSize = 16
 
+-- NEU: ESP Button
+local ESPButton = Instance.new("TextButton")
+ESPButton.Parent = MainFrame
+ESPButton.Size = UDim2.new(0, 200, 0, 30)
+ESPButton.Position = UDim2.new(0, 50, 0, 220)
+ESPButton.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+ESPButton.BorderSizePixel = 1
+ESPButton.BorderColor3 = Color3.new(0, 1, 0)
+ESPButton.Text = "ESP: AUS"
+ESPButton.TextColor3 = Color3.new(1, 0, 0)
+ESPButton.Font = Enum.Font.SourceSansBold
+ESPButton.TextSize = 16
+
 local CloseButton = Instance.new("TextButton")
 CloseButton.Parent = MainFrame
 CloseButton.Size = UDim2.new(0, 30, 0, 30)
@@ -109,6 +123,10 @@ local noClipEnabled = false
 local flySpeed = 50
 local bodyVelocity
 local bodyGyro
+-- NEU: ESP Variablen
+local espEnabled = false
+local espConnections = {}
+local espObjects = {}
 
 -- Geschwindigkeitsfunktion
 local function updateSpeed()
@@ -116,6 +134,128 @@ local function updateSpeed()
         Humanoid.WalkSpeed = 16 * speedValue
     end
     SpeedLabel.Text = "Speed: " .. string.format("%.1f", speedValue)
+end
+
+
+-- NEU: ESP Funktionen
+local function createESP(player)
+    if espObjects[player] then return end -- Verhindert doppelte Erstellung
+
+    local character = player.Character
+    if not character then return end
+
+    espObjects[player] = {
+        box = Drawing.new("Square"),
+        name = Drawing.new("Text"),
+        distance = Drawing.new("Text"),
+        tracer = Drawing.new("Line")
+    }
+
+    local objects = espObjects[player]
+    objects.box.Thickness = 1
+    objects.box.Color = Color3.new(0, 1, 0)
+    objects.box.Filled = false
+    objects.box.Transparency = 1
+
+    objects.name.Color = Color3.new(1, 1, 1)
+    objects.name.Size = 14
+    objects.name.Center = true
+    objects.name.Outline = true
+    objects.name.OutlineColor = Color3.new(0, 0, 0)
+
+    objects.distance.Color = Color3.new(1, 1, 0)
+    objects.distance.Size = 12
+    objects.distance.Center = true
+    objects.distance.Outline = true
+    objects.distance.OutlineColor = Color3.new(0, 0, 0)
+
+    objects.tracer.Color = Color3.new(1, 0, 0)
+    objects.tracer.Thickness = 1
+    objects.tracer.Transparency = 1
+end
+
+local function removeESP(player)
+    if espObjects[player] then
+        for _, drawing in pairs(espObjects[player]) do
+            drawing:Remove()
+        end
+        espObjects[player] = nil
+    end
+end
+
+local function updateESP()
+    if not espEnabled then
+        for player, _ in pairs(espObjects) do
+            removeESP(player)
+        end
+        return
+    end
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            if not espObjects[player] then
+                createESP(player)
+            end
+
+            local rootPart = player.Character.HumanoidRootPart
+            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+            local pos, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
+            
+            local objects = espObjects[player]
+            if onScreen then
+                local distance = (Camera.CFrame.Position - rootPart.Position).Magnitude
+                local scale = 1000 / distance
+                local headPos = Camera:WorldToViewportPoint(rootPart.Position + Vector3.new(0, humanoid.HipHeight, 0))
+                local footPos = Camera:WorldToViewportPoint(rootPart.Position - Vector3.new(0, humanoid.HipHeight, 0))
+                
+                local height = math.abs(headPos.Y - footPos.Y)
+                local width = height * 0.6
+
+                -- Box
+                objects.box.Size = Vector2.new(width, height)
+                objects.box.Position = Vector2.new(pos.X - width / 2, pos.Y - height / 2)
+                objects.box.Visible = true
+
+                -- Name
+                objects.name.Text = player.Name
+                objects.name.Position = Vector2.new(pos.X, pos.Y - height / 2 - 15)
+                objects.name.Visible = true
+
+                -- Distance
+                objects.distance.Text = string.format("%.0f m", distance)
+                objects.distance.Position = Vector2.new(pos.X, pos.Y + height / 2 + 15)
+                objects.distance.Visible = true
+
+                -- Tracer
+                objects.tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                objects.tracer.To = Vector2.new(pos.X, pos.Y)
+                objects.tracer.Visible = true
+            else
+                -- Verstecke alle Objekte, wenn der Spieler außerhalb des Bildschirms ist
+                for _, drawing in pairs(objects) do
+                    drawing.Visible = false
+                end
+            end
+        else
+            -- Entferne ESP, wenn der Spieler kein Character mehr hat
+            removeESP(player)
+        end
+    end
+end
+
+local function toggleESP()
+    espEnabled = not espEnabled
+    if espEnabled then
+        ESPButton.Text = "ESP: AN"
+        ESPButton.TextColor3 = Color3.new(0, 1, 0)
+    else
+        ESPButton.Text = "ESP: AUS"
+        ESPButton.TextColor3 = Color3.new(1, 0, 0)
+        -- Räume alle bestehenden ESPs auf
+        for player, _ in pairs(espObjects) do
+            removeESP(player)
+        end
+    end
 end
 
 -- Fliegen-Funktionen
@@ -274,13 +414,22 @@ FlyButton.MouseButton1Click:Connect(function()
     end
 end)
 
+ESPButton.MouseButton1Click:Connect(toggleESP)
 NoClipButton.MouseButton1Click:Connect(toggleNoClip)
 BarrierButton.MouseButton1Click:Connect(toggleBarriers)
 CloseButton.MouseButton1Click:Connect(function()
+    -- Räume alle ESP-Objekte auf
+    for player, _ in pairs(espObjects) do
+        removeESP(player)
+    end
+    -- Trenne alle Verbindungen
+    for _, connection in pairs(espConnections) do
+        connection:Disconnect()
+    end
     ScreenGui:Destroy()
 end)
 
--- NoClip und Fliegen-Loop
+-- NEU
 RunService.Stepped:Connect(function()
     -- NoClip
     if noClipEnabled and Character and Humanoid then
@@ -293,11 +442,15 @@ RunService.Stepped:Connect(function()
     
     -- Fliegen-Steuerung
     controlFly()
+    
+    -- NEU: ESP Update
+    updateESP()
 end)
 
 -- Initialisierung
 findBarriers()
 updateSpeed()
+
 
 -- Automatische Aktualisierung der Barrieren
 spawn(function()
@@ -314,6 +467,37 @@ spawn(function()
         end
     end
 end)
+
+
+-- NEU: Spieler-Verbindungen für ESP
+local function onPlayerAdded(player)
+    local connection
+    connection = player.CharacterAdded:Connect(function()
+        if espEnabled then
+            createESP(player)
+        end
+    end)
+    espConnections[player] = connection
+end
+
+-- NEU (etwas sicherer)
+local function onPlayerRemoving(player)
+    if player then -- Sicherheitsprüfung
+        removeESP(player)
+        if espConnections[player] then
+            espConnections[player]:Disconnect()
+            espConnections[player] = nil
+        end
+    end
+end
+
+for _, player in pairs(Players:GetPlayers()) do
+    onPlayerAdded(player)
+end
+
+
+Players.PlayerAdded:Connect(onPlayerAdded)
+Players.PlayerRemoving:Connect(onPlayerRemoving)
 
 print("F.N. Hunted Multi-Hack geladen!")
 print("Features: Geschwindigkeit, Fliegen, NoClip, Barrieren")
