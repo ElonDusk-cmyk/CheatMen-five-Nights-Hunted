@@ -15,7 +15,7 @@ ScreenGui.Parent = game:GetService("CoreGui")
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Parent = ScreenGui
-MainFrame.Size = UDim2.new(0, 300, 0, 320)
+MainFrame.Size = UDim2.new(0, 300, 0, 360)
 MainFrame.Position = UDim2.new(0.5, -150, 0.5, -160)
 MainFrame.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
 MainFrame.BorderSizePixel = 2
@@ -102,6 +102,19 @@ ESPButton.TextColor3 = Color3.new(1, 0, 0)
 ESPButton.Font = Enum.Font.SourceSansBold
 ESPButton.TextSize = 16
 
+-- NEU: Insta-Kill Button
+local InstaKillButton = Instance.new("TextButton")
+InstaKillButton.Parent = MainFrame
+InstaKillButton.Size = UDim2.new(0, 200, 0, 30)
+InstaKillButton.Position = UDim2.new(0, 50, 0, 260) -- Position unter dem ESP-Button
+InstaKillButton.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+InstaKillButton.BorderSizePixel = 1
+InstaKillButton.BorderColor3 = Color3.new(0, 1, 0)
+InstaKillButton.Text = "Insta-Kill: AUS"
+InstaKillButton.TextColor3 = Color3.new(1, 0, 0)
+InstaKillButton.Font = Enum.Font.SourceSansBold
+InstaKillButton.TextSize = 16
+
 local CloseButton = Instance.new("TextButton")
 CloseButton.Parent = MainFrame
 CloseButton.Size = UDim2.new(0, 30, 0, 30)
@@ -127,6 +140,7 @@ local bodyGyro
 local espEnabled = false
 local espConnections = {}
 local espObjects = {}
+local instaKillEnabled = false
 
 -- Geschwindigkeitsfunktion
 local function updateSpeed()
@@ -239,6 +253,62 @@ local function updateESP()
         else
             -- Entferne ESP, wenn der Spieler kein Character mehr hat
             removeESP(player)
+        end
+    end
+end
+
+-- NEU: Insta-Kill Funktion
+local function onHit(hitPart)
+    if not instaKillEnabled then return end
+    
+    local character = hitPart.Parent
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    
+    -- Überprüfen, ob es ein gültiger Gegner ist (nicht du selbst)
+    if humanoid and humanoid ~= Humanoid and character ~= Character then
+        -- Setze die Gesundheit des Gegners auf 0
+        humanoid.Health = 0
+    end
+end
+
+local function toggleInstaKill()
+    instaKillEnabled = not instaKillEnabled
+    if instaKillEnabled then
+        InstaKillButton.Text = "Insta-Kill: AN"
+        InstaKillButton.TextColor3 = Color3.new(0, 1, 0)
+        
+        -- Funktion, um die Events zu verbinden
+        local function connectToCharacter(char)
+            if not char then return end
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    local connection = part.Touched:Connect(onHit)
+                    if not espConnections["InstaKill"] then espConnections["InstaKill"] = {} end
+                    table.insert(espConnections["InstaKill"], connection)
+                end
+            end
+        end
+
+        -- Verbinde mit dem aktuellen Charakter
+        connectToCharacter(Character)
+        
+        -- Verbinde erneut, wenn der Charakter respawnt
+        espConnections.InstakillRespawn = LocalPlayer.CharacterAdded:Connect(connectToCharacter)
+
+    else
+        InstaKillButton.Text = "Insta-Kill: AUS"
+        InstaKillButton.TextColor3 = Color3.new(1, 0, 0)
+        
+        -- Trenne alle Verbindungen
+        if espConnections["InstaKill"] then
+            for _, connection in pairs(espConnections["InstaKill"]) do
+                connection:Disconnect()
+            end
+            espConnections["InstaKill"] = nil
+        end
+        if espConnections.InstakillRespawn then
+            espConnections.InstakillRespawn:Disconnect()
+            espConnections.InstakillRespawn = nil
         end
     end
 end
@@ -417,15 +487,23 @@ end)
 ESPButton.MouseButton1Click:Connect(toggleESP)
 NoClipButton.MouseButton1Click:Connect(toggleNoClip)
 BarrierButton.MouseButton1Click:Connect(toggleBarriers)
+InstaKillButton.MouseButton1Click:Connect(toggleInstaKill)
 CloseButton.MouseButton1Click:Connect(function()
     -- Räume alle ESP-Objekte auf
     for player, _ in pairs(espObjects) do
         removeESP(player)
     end
-    -- Trenne alle Verbindungen
-    for _, connection in pairs(espConnections) do
-        connection:Disconnect()
+    -- Trenne alle Verbindungen (einschließlich Insta-Kill)
+    for key, connections in pairs(espConnections) do
+        if type(connections) == "table" then
+            for _, connection in pairs(connections) do
+                connection:Disconnect()
+            end
+        else
+            connections:Disconnect()
+        end
     end
+    espConnections = {}
     ScreenGui:Destroy()
 end)
 
@@ -498,6 +576,20 @@ end
 
 Players.PlayerAdded:Connect(onPlayerAdded)
 Players.PlayerRemoving:Connect(onPlayerRemoving)
+
+-- Stelle sicher, dass Character und Humanoid immer aktuell sind
+LocalPlayer.CharacterAdded:Connect(function(newChar)
+    Character = newChar
+    Humanoid = Character:WaitForChild("Humanoid")
+    
+    -- Optional: Deaktiviere NoClip und Fliegen nach dem Respawn für Sicherheit
+    if noClipEnabled then
+        toggleNoClip()
+    end
+    if flying then
+        stopFly()
+    end
+end)
 
 print("F.N. Hunted Multi-Hack geladen!")
 print("Features: Geschwindigkeit, Fliegen, NoClip, Barrieren")
