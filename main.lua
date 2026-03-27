@@ -15,7 +15,7 @@ ScreenGui.Parent = game:GetService("CoreGui")
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Parent = ScreenGui
-MainFrame.Size = UDim2.new(0, 300, 0, 360)
+MainFrame.Size = UDim2.new(0, 300, 0, 420) -- Höhe von 360 auf 420 erhöht
 MainFrame.Position = UDim2.new(0.5, -150, 0.5, -160)
 MainFrame.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
 MainFrame.BorderSizePixel = 2
@@ -115,6 +115,50 @@ InstaKillButton.TextColor3 = Color3.new(1, 0, 0)
 InstaKillButton.Font = Enum.Font.SourceSansBold
 InstaKillButton.TextSize = 16
 
+-- NEU: Auto Geschwindigkeits-Label
+local CarSpeedLabel = Instance.new("TextLabel")
+CarSpeedLabel.Parent = MainFrame
+CarSpeedLabel.Size = UDim2.new(0, 100, 0, 20)
+CarSpeedLabel.Position = UDim2.new(0, 10, 0, 300)
+CarSpeedLabel.BackgroundTransparency = 1
+CarSpeedLabel.Text = "Car Speed: 1.0"
+CarSpeedLabel.TextColor3 = Color3.new(1, 1, 1)
+CarSpeedLabel.Font = Enum.Font.SourceSans
+CarSpeedLabel.TextSize = 14
+
+-- NEU: Auto Geschwindigkeits-Regler
+local CarSpeedSlider = Instance.new("TextButton")
+CarSpeedSlider.Parent = MainFrame
+CarSpeedSlider.Size = UDim2.new(0, 200, 0, 20)
+CarSpeedSlider.Position = UDim2.new(0, 50, 0, 325)
+CarSpeedSlider.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+CarSpeedSlider.BorderSizePixel = 1
+CarSpeedSlider.BorderColor3 = Color3.new(0, 1, 0)
+CarSpeedSlider.Text = ""
+CarSpeedSlider.AutoButtonColor = false
+
+-- NEU: Auto Bremskraft-Label
+local CarBrakeLabel = Instance.new("TextLabel")
+CarBrakeLabel.Parent = MainFrame
+CarBrakeLabel.Size = UDim2.new(0, 100, 0, 20)
+CarBrakeLabel.Position = UDim2.new(0, 10, 0, 350)
+CarBrakeLabel.BackgroundTransparency = 1
+CarBrakeLabel.Text = "Car Brake: 1.0"
+CarBrakeLabel.TextColor3 = Color3.new(1, 1, 1)
+CarBrakeLabel.Font = Enum.Font.SourceSans
+CarBrakeLabel.TextSize = 14
+
+-- NEU: Auto Bremskraft-Regler
+local CarBrakeSlider = Instance.new("TextButton")
+CarBrakeSlider.Parent = MainFrame
+CarBrakeSlider.Size = UDim2.new(0, 200, 0, 20)
+CarBrakeSlider.Position = UDim2.new(0, 50, 0, 375)
+CarBrakeSlider.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+CarBrakeSlider.BorderSizePixel = 1
+CarBrakeSlider.BorderColor3 = Color3.new(0, 1, 0)
+CarBrakeSlider.Text = ""
+CarBrakeSlider.AutoButtonColor = false
+
 local CloseButton = Instance.new("TextButton")
 CloseButton.Parent = MainFrame
 CloseButton.Size = UDim2.new(0, 30, 0, 30)
@@ -141,6 +185,12 @@ local espEnabled = false
 local espConnections = {}
 local espObjects = {}
 local instaKillEnabled = false
+-- NEU: Auto-Funktionen Variablen
+local carSpeedValue = 1.0
+local carBrakeValue = 1.0
+local currentVehicle = nil
+local isDraggingCarSpeed = false
+local isDraggingCarBrake = false
 
 -- Geschwindigkeitsfunktion
 local function updateSpeed()
@@ -255,6 +305,62 @@ local function updateESP()
             removeESP(player)
         end
     end
+end
+
+-- NEUE KOMBINIERTE FUNKTION: Wendet alle Fahrzeug-Mods an
+local function applyVehicleMods()
+    if not currentVehicle or not currentVehicle.Parent then return end
+
+    local seat = currentVehicle:FindFirstChildWhichIsA("VehicleSeat") or currentVehicle:FindFirstChild("DriveSeat")
+    if not seat then return end
+
+    -- Geschwindigkeits-Mods
+    if seat:FindFirstChild("MaxSpeed") then
+        seat.MaxSpeed.Value = (50 * carSpeedValue) -- Basis 50, skaliert
+    end
+    if seat:FindFirstChild("MaxTorque") then
+        seat.MaxTorque.Value = (5000 * carSpeedValue) -- Beschleunigung
+    end
+    
+    -- Bremse-Mods
+    if seat:FindFirstChild("BrakeTorque") then
+        seat.BrakeTorque.Value = (5000 * carBrakeValue) -- Bremskraft
+    end
+
+    -- Zusätzliche, oft genutzte Properties für maximale Wirkung
+    if seat:FindFirstChild("Steer") then
+        seat.Steer = 0 -- Lenkung zurücksetzen
+    end
+end
+
+-- VEREINFACHTE Update-Funktionen, die nur das Label aktualisieren
+local function updateCarSpeed()
+    CarSpeedLabel.Text = "Car Speed: " .. string.format("%.1f", carSpeedValue)
+    -- Mods direkt anwenden, wenn im Fahrzeug
+    if currentVehicle then
+        applyVehicleMods()
+    end
+end
+
+local function updateCarBrake()
+    CarBrakeLabel.Text = "Car Brake: " .. string.format("%.1f", carBrakeValue)
+    -- Mods direkt anwenden, wenn im Fahrzeug
+    if currentVehicle then
+        applyVehicleMods()
+    end
+end
+
+-- Funktion, um das aktuelle Fahrzeug zu finden (VERBESSERT)
+local function findCurrentVehicle()
+    if Character and Character:FindFirstChild("Humanoid") and Character.Humanoid.SeatPart then
+        local seat = Character.Humanoid.SeatPart
+        if seat and seat:IsA("VehicleSeat") then
+            currentVehicle = seat.Parent
+            return true -- Gibt true zurück, wenn ein Fahrzeug gefunden wurde
+        end
+    end
+    currentVehicle = nil
+    return false
 end
 
 -- NEU: Insta-Kill Funktion
@@ -451,29 +557,76 @@ local function toggleBarriers()
     end
 end
 
+
 -- Slider-Steuerung
 SpeedSlider.MouseButton1Down:Connect(function()
     isDragging = true
 end)
 
+CarSpeedSlider.MouseButton1Down:Connect(function()
+    isDraggingCarSpeed = true
+end)
+
+CarBrakeSlider.MouseButton1Down:Connect(function()
+    isDraggingCarBrake = true
+end)
+
 UserInputService.InputChanged:Connect(function(input)
-    if isDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-        local mousePos = input.Position
-        local sliderPos = SpeedSlider.AbsolutePosition
-        local sliderSize = SpeedSlider.AbsoluteSize
-        
-        local relativeX = math.clamp((mousePos.X - sliderPos.X) / sliderSize.X, 0, 1)
-        speedValue = 0.1 + (relativeX * 4.9) -- 0.1 bis 5.0
-        
-        updateSpeed()
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        -- Originaler Geschwindigkeits-Regler
+        if isDragging then
+            local mousePos = input.Position
+            local sliderPos = SpeedSlider.AbsolutePosition
+            local sliderSize = SpeedSlider.AbsoluteSize
+            
+            local relativeX = math.clamp((mousePos.X - sliderPos.X) / sliderSize.X, 0, 1)
+            speedValue = 0.1 + (relativeX * 4.9)
+            
+            updateSpeed()
+        end
+
+        -- NEU: Auto Geschwindigkeits-Regler
+        if isDraggingCarSpeed then
+            local mousePos = input.Position
+            local sliderPos = CarSpeedSlider.AbsolutePosition
+            local sliderSize = CarSpeedSlider.AbsoluteSize
+            
+            local relativeX = math.clamp((mousePos.X - sliderPos.X) / sliderSize.X, 0, 1)
+            carSpeedValue = 0.1 + (relativeX * 4.9) -- 0.1 bis 5.0
+            
+            updateCarSpeed()
+        end
+
+       -- NEU: Auto Bremskraft-Regler
+if isDraggingCarBrake then
+    local mousePos = input.Position
+    local sliderPos = CarBrakeSlider.AbsolutePosition
+    local sliderSize = CarBrakeSlider.AbsoluteSize
+    
+    local relativeX = math.clamp((mousePos.X - sliderPos.X) / sliderSize.X, 0, 1)
+    carBrakeValue = 0.1 + (relativeX * 4.9) -- 0.1 bis 5.0
+    
+    updateCarBrake()
+end
+
     end
 end)
 
 UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        isDragging = false
+        if isDragging then
+            isDragging = false
+        end
+        if isDraggingCarSpeed then
+            isDraggingCarSpeed = false
+        end
+        if isDraggingCarBrake then
+            isDraggingCarBrake = false
+        end
     end
 end)
+
+
 
 -- Button-Events
 FlyButton.MouseButton1Click:Connect(function()
@@ -576,6 +729,30 @@ end
 
 Players.PlayerAdded:Connect(onPlayerAdded)
 Players.PlayerRemoving:Connect(onPlayerRemoving)
+
+--Loop--
+-- Optional: Setze die Werte zurück, wenn das Fahrzeug gewechselt wird
+local lastVehicle = nil
+spawn(function()
+    while ScreenGui.Parent and wait(0.1) do -- Alle 0.1 Sekunden prüfen
+        local wasInVehicle = (currentVehicle ~= nil)
+        local isInVehicle = findCurrentVehicle()
+
+        -- Wenn Fahrzeugstatus sich geändert hat
+        if wasInVehicle ~= isInVehicle then
+            if isInVehicle then
+                print("Fahrzeug erkannt: " .. (currentVehicle.Name or "Unbekannt"))
+            else
+                print("Fahrzeug verlassen.")
+            end
+        end
+
+        -- Wenn im Fahrzeug, wende kontinuierlich die Mods an
+        if currentVehicle then
+            applyVehicleMods()
+        end
+    end
+end)
 
 -- Stelle sicher, dass Character und Humanoid immer aktuell sind
 LocalPlayer.CharacterAdded:Connect(function(newChar)
